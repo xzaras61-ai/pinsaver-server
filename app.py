@@ -9,7 +9,7 @@ from yt_dlp import YoutubeDL
 app = Flask(__name__)
 CORS(app)
 
-PIN_RE = re.compile(r"^https?://([\w-]+\.)?(pinterest\.[a-z.]+|pin\.it)/", re.I)
+PIN_RE = re.compile(r"^https?://([\w-]+\.)*(pinterest\.[a-z.]+|pin\.it)(/|$)", re.I)
 
 
 def quality_label(h):
@@ -29,6 +29,20 @@ def home():
     return "OK"
 
 
+@app.get("/test")
+def test():
+    from yt_dlp.version import __version__
+    link = request.args.get("u", "").strip()
+    if not PIN_RE.match(link):
+        return "Invalid link. Use /test?u=<pinterest link>", 400
+    try:
+        with YoutubeDL({"quiet": True, "skip_download": True, "noplaylist": True}) as y:
+            info = y.extract_info(link, download=False)
+        return "OK | yt-dlp %s | title: %s | formats: %s" % (__version__, info.get("title"), len(info.get("formats") or []))
+    except Exception as e:
+        return "ERROR | yt-dlp %s | %s" % (__version__, str(e)[:800]), 422
+
+
 @app.post("/api")
 def api():
     data = request.get_json(silent=True) or {}
@@ -38,8 +52,9 @@ def api():
     try:
         with YoutubeDL({"quiet": True, "skip_download": True, "noplaylist": True}) as y:
             info = y.extract_info(link, download=False)
-    except Exception:
-        return jsonify(error="Could not fetch this pin"), 422
+    except Exception as e:
+        app.logger.error("fetch failed: %s", e)
+        return jsonify(error="Could not fetch this pin", detail=str(e)[:300]), 422
 
     base = request.host_url.rstrip("/")
     downloads, seen = [], set()
