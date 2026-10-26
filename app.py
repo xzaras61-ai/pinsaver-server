@@ -62,7 +62,18 @@ def api():
     if not downloads:
         return jsonify(error="No video found"), 404
 
-    return jsonify(title=info.get("title") or "Your pin is ready", thumbnail=info.get("thumbnail") or "", downloads=downloads)
+    mp4s = [f for f in info.get("formats") or [] if f.get("url") and f.get("ext") == "mp4" and f.get("vcodec") not in (None, "none") and f.get("protocol") in ("https", "http")]
+    preview = sorted(mp4s, key=lambda f: f.get("height") or 0)[0]["url"] if mp4s else ""
+
+    return jsonify(
+        title=info.get("title") or "Your pin is ready",
+        creator=info.get("uploader") or "",
+        duration=int(info.get("duration") or 0),
+        description=(info.get("description") or "")[:160],
+        preview=preview,
+        thumbnail=info.get("thumbnail") or "",
+        downloads=downloads,
+    )
 
 
 @app.get("/dl")
